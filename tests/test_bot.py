@@ -72,6 +72,7 @@ class TestOnMessage:
         config = _make_config()
         bot = BengalaBot(config, repo)
         bot.process_commands = AsyncMock()  # type: ignore[method-assign]
+        bot.scheduler = MagicMock()
 
         now = datetime(2025, 1, 1, 6, 0, tzinfo=timezone.utc)
         await repo.create_round("abacaxi", now)

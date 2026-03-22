@@ -7,6 +7,7 @@ from unittest.mock import patch
 from bengala.word_pipeline import (
     contains_forbidden_word,
     filter_tokens,
+    get_plural_variants,
     select_forbidden_word,
     tokenize_message,
 )
@@ -72,6 +73,73 @@ class TestFilterTokens:
         assert "mais" not in result
 
 
+class TestGetPluralVariants:
+    def test_always_contains_original(self) -> None:
+        assert "gato" in get_plural_variants("gato")
+        assert "flores" in get_plural_variants("flores")
+
+    # Rule 5: default -s
+    def test_singular_to_plural_s(self) -> None:
+        assert "gatos" in get_plural_variants("gato")
+        assert "coisas" in get_plural_variants("coisa")
+
+    def test_plural_s_to_singular(self) -> None:
+        assert "gato" in get_plural_variants("gatos")
+        assert "coisa" in get_plural_variants("coisas")
+
+    # Rule 1: -ão ↔ -ões / -ães / -ãos
+    def test_ao_to_plurals(self) -> None:
+        variants = get_plural_variants("coração")
+        assert "corações" in variants
+        assert "coraçães" in variants
+        assert "coraçãos" in variants
+
+    def test_oes_to_singular(self) -> None:
+        variants = get_plural_variants("corações")
+        assert "coração" in variants
+
+    def test_aes_to_singular(self) -> None:
+        variants = get_plural_variants("pães")
+        assert "pão" in variants
+
+    def test_aos_to_singular(self) -> None:
+        variants = get_plural_variants("irmãos")
+        assert "irmão" in variants
+
+    # Rule 2: -m ↔ -ns
+    def test_m_to_ns(self) -> None:
+        assert "homens" in get_plural_variants("homem")
+
+    def test_ns_to_m(self) -> None:
+        assert "homem" in get_plural_variants("homens")
+
+    # Rule 3: -l ↔ -is
+    def test_l_to_is(self) -> None:
+        assert "animais" in get_plural_variants("animal")
+
+    def test_is_to_l(self) -> None:
+        assert "animal" in get_plural_variants("animais")
+
+    def test_el_to_eis(self) -> None:
+        assert "papéis" in get_plural_variants("papel")
+
+    def test_eis_to_el(self) -> None:
+        assert "papel" in get_plural_variants("papéis")
+
+    # Rule 4: -r / -z + -es
+    def test_r_to_res(self) -> None:
+        assert "flores" in get_plural_variants("flor")
+
+    def test_res_to_r(self) -> None:
+        assert "flor" in get_plural_variants("flores")
+
+    def test_z_to_zes(self) -> None:
+        assert "vezes" in get_plural_variants("vez")
+
+    def test_zes_to_z(self) -> None:
+        assert "vez" in get_plural_variants("vezes")
+
+
 class TestSelectForbiddenWord:
     def test_selects_word_with_enough_frequency(self) -> None:
         # "abacaxi" appears 5 times, should be eligible
@@ -121,6 +189,17 @@ class TestSelectForbiddenWord:
         from bengala.fallback_words import FALLBACK_WORDS
         assert word in FALLBACK_WORDS
 
+    def test_groups_singular_and_plural_for_frequency(self) -> None:
+        # "gato" x3 + "gatos" x2 = 5 total — should be eligible
+        messages = ["gato"] * 3 + ["gatos"] * 2
+        word = select_forbidden_word(messages, min_freq=5)
+        assert word in ("gato", "gatos")
+
+    def test_groups_ao_oes_for_frequency(self) -> None:
+        messages = ["dragão"] * 3 + ["dragões"] * 3
+        word = select_forbidden_word(messages, min_freq=5)
+        assert word in ("dragão", "dragões")
+
 
 class TestContainsForbiddenWord:
     def test_exact_match(self) -> None:
@@ -140,3 +219,24 @@ class TestContainsForbiddenWord:
 
     def test_with_punctuation(self) -> None:
         assert contains_forbidden_word("gato, cachorro!", "gato") is True
+
+    def test_plural_s_matches(self) -> None:
+        assert contains_forbidden_word("eu vi dois gatos", "gato") is True
+
+    def test_singular_matches_plural_word(self) -> None:
+        assert contains_forbidden_word("eu vi um gato", "gatos") is True
+
+    def test_plural_oes_matches(self) -> None:
+        assert contains_forbidden_word("dois corações", "coração") is True
+
+    def test_plural_ns_matches(self) -> None:
+        assert contains_forbidden_word("os homens saíram", "homem") is True
+
+    def test_plural_is_matches(self) -> None:
+        assert contains_forbidden_word("os animais fugiram", "animal") is True
+
+    def test_unrelated_word_no_false_positive(self) -> None:
+        assert contains_forbidden_word("eu vi a casa", "casar") is False
+
+    def test_substring_still_no_match(self) -> None:
+        assert contains_forbidden_word("os gatinhos são fofos", "gato") is False

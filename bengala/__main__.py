@@ -47,6 +47,7 @@ async def main() -> None:
     async def setup_hook_with_scheduler() -> None:
         await original_setup_hook()
         scheduler = setup_scheduler(bot)
+        bot.scheduler = scheduler
         scheduler.start()
         logger.info("Scheduler iniciado — ciclo diário às 06h00 UTC")
 

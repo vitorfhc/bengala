@@ -10,6 +10,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from apscheduler.triggers.date import DateTrigger  # type: ignore[import-untyped]
+
 from bengala.config import Config
 from bengala.db.repository import Repository
 from bengala.messages import (
@@ -130,6 +132,14 @@ class BengalaBot(commands.Bot):
                 await member.add_roles(mute_role)
                 await self.repo.mute_player(player.id, now)
                 player.muted_at = now
+                # Schedule automatic unmute after 1 hour
+                self.scheduler.add_job(
+                    unmute_player,
+                    DateTrigger(run_date=now + timedelta(hours=1)),
+                    args=[self, guild.id, member.id, mute_role.id],
+                    id=f"unmute_{member.id}_{active_round.id}",
+                    replace_existing=True,
+                )
                 try:
                     await message.author.send(format_mute_notice())
                 except discord.Forbidden:
@@ -144,6 +154,26 @@ class BengalaBot(commands.Bot):
                 logger.warning("Não foi possível enviar DM para %s", message.author)
 
         await self.process_commands(message)
+
+
+async def unmute_player(
+    bot: BengalaBot, guild_id: int, member_id: int, mute_role_id: int
+) -> None:
+    """Remove the mute role from a player after the mute duration expires."""
+    guild = bot.get_guild(guild_id)
+    if guild is None:
+        return
+    member = guild.get_member(member_id)
+    if member is None:
+        return
+    mute_role = guild.get_role(mute_role_id)
+    if mute_role is None or mute_role not in member.roles:
+        return
+    try:
+        await member.remove_roles(mute_role)
+        logger.info("Mute expirado para %s", member)
+    except discord.Forbidden:
+        logger.warning("Não foi possível remover mute de %s", member)
 
 
 async def _compute_scoreboard(

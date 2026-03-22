@@ -86,7 +86,7 @@ def format_rules() -> str:
         "o placar ser revelado no dia seguinte.\n"
         "\n"
         "🔇 **O que acontece se eu disser a palavra proibida?**\n"
-        "Você será silenciado pelo resto da rodada. A notificação é "
+        "Você será silenciado por 1 hora. A notificação é "
         "privada — só você saberá o que aconteceu, os outros jogadores "
         "não serão avisados.\n"
         "\n"
@@ -111,9 +111,9 @@ def format_mute_notice() -> str:
     """Format the ephemeral mute notification."""
     return (
         "🔇 Você foi bengalado!!! Que delicia!!! "
-        "Você disse a palavra proibida e foi silenciado! "
+        "Você disse a palavra proibida e foi silenciado por 1 hora! "
         "Só você está vendo esta mensagem — os outros jogadores "
-        "não sabem o que aconteceu. Boa sorte na próxima rodada!"
+        "não sabem o que aconteceu."
     )
 
 
