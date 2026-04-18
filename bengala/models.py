@@ -25,6 +25,7 @@ class PlayerData:
     user_id: int
     username: str
     muted_at: datetime | None = None
+    original_nickname: str | None = None
 
 
 @dataclass

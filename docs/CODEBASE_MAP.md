@@ -10,7 +10,7 @@ total_tokens: 24740
 
 ## System Overview
 
-Bengala is a Portuguese-language Discord bot that runs a daily "forbidden word" game. Each day at 06:00 UTC, a secret word is selected from recent channel messages. Players who say the forbidden word get silenced (muted) for the rest of the round. Scoring is based on unique words (4+ chars, stop-words removed) each player sends.
+Bengala is a Portuguese-language Discord bot that runs a daily "forbidden word" game. Each day at 06:00 UTC, a secret word is selected from recent channel messages. Players who say the forbidden word get their server nickname rewritten to `🤡 <name> - bengalado` for the rest of the round; original nicknames are restored when the round ends. Scoring is based on unique words (4+ chars, stop-words removed) each player sends.
 
 ```mermaid
 graph TB
@@ -142,7 +142,7 @@ roleta/
 
 **Key behavior**:
 - Score = count of unique words (4+ chars, not stop words) across all messages
-- Muted players: only messages sent strictly before `muted_at` count
+- Punished players (nickname rewritten): only messages sent strictly before `muted_at` count
 - Scoreboard sorted descending by score
 
 ### `bengala/messages.py` (presentation)
@@ -151,13 +151,13 @@ roleta/
 **Key exports**: `format_final_scoreboard()`, `format_partial_scoreboard()`, `format_rules()`, `format_mute_notice()`, `format_secret_word()`, etc.
 
 **Key behavior**:
-- Partial scoreboard intentionally hides mute status (privacy during round)
-- Final scoreboard reveals mute status
+- Partial scoreboard intentionally hides punishment status (privacy during round)
+- Final scoreboard reveals punishment status with the 🤡 icon
 
 ### `bengala/config.py`
 
-**Purpose**: Load and validate four required env vars into frozen `Config` dataclass.
-**Required vars**: `DISCORD_TOKEN`, `CHANNEL_ID`, `MUTE_ROLE_ID`, `ADMIN_ROLE_ID`
+**Purpose**: Load and validate three required env vars into frozen `Config` dataclass.
+**Required vars**: `DISCORD_TOKEN`, `WATCHED_CHANNEL_ID`, `ADMIN_ROLE_ID`
 **Optional**: `BENGALA_DB_PATH` (used in `__main__.py`, defaults to `data/bengala.db`)
 
 ### `bengala/models.py`
@@ -189,7 +189,8 @@ sequenceDiagram
         Bot->>Bot: build_scoreboard()
         Bot->>Discord: send final scoreboard
         Bot->>Repo: end_round()
-        Bot->>Discord: remove mute roles
+        Bot->>Repo: get_punished_players()
+        Bot->>Discord: restore original nicknames
     end
     Bot->>Discord: fetch last 10k messages
     Bot->>Pipeline: select_forbidden_word(messages)
@@ -214,9 +215,9 @@ sequenceDiagram
     Bot->>Repo: add_message()
     Bot->>Pipeline: contains_forbidden_word(msg, word)
     alt Contains forbidden word
-        Bot->>Repo: mute_player()
-        Bot->>Discord: add mute role
-        Bot->>Discord: DM mute notice
+        Bot->>Discord: edit member nick -> "🤡 <name> - bengalado"
+        Bot->>Repo: mute_player(original_nickname)
+        Bot->>Discord: DM punishment notice
     end
 ```
 

@@ -46,13 +46,46 @@ class TestRepository:
         round_data = await repo.create_round("abacaxi", now)
         player = await repo.get_or_create_player(round_data.id, 100, "alice")
         assert player.muted_at is None
+        assert player.original_nickname is None
 
         mute_time = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
-        await repo.mute_player(player.id, mute_time)
+        await repo.mute_player(player.id, mute_time, "alice-nick")
 
         # Re-fetch
         player2 = await repo.get_or_create_player(round_data.id, 100, "alice")
         assert player2.muted_at == mute_time
+        assert player2.original_nickname == "alice-nick"
+
+    async def test_mute_player_with_null_nickname(
+        self, repo: Repository
+    ) -> None:
+        now = datetime(2025, 1, 1, 6, 0, tzinfo=timezone.utc)
+        round_data = await repo.create_round("abacaxi", now)
+        player = await repo.get_or_create_player(round_data.id, 100, "alice")
+
+        mute_time = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+        await repo.mute_player(player.id, mute_time, None)
+
+        player2 = await repo.get_or_create_player(round_data.id, 100, "alice")
+        assert player2.muted_at == mute_time
+        assert player2.original_nickname is None
+
+    async def test_get_punished_players(self, repo: Repository) -> None:
+        now = datetime(2025, 1, 1, 6, 0, tzinfo=timezone.utc)
+        round_data = await repo.create_round("abacaxi", now)
+
+        p1 = await repo.get_or_create_player(round_data.id, 100, "alice")
+        p2 = await repo.get_or_create_player(round_data.id, 101, "bob")
+        await repo.get_or_create_player(round_data.id, 102, "carol")
+
+        mute_time = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+        await repo.mute_player(p1.id, mute_time, "alice-nick")
+        await repo.mute_player(p2.id, mute_time, None)
+
+        punished = await repo.get_punished_players(round_data.id)
+        assert sorted(punished) == sorted(
+            [(100, "alice-nick"), (101, None)]
+        )
 
     async def test_add_and_get_messages(self, repo: Repository) -> None:
         now = datetime(2025, 1, 1, 6, 0, tzinfo=timezone.utc)

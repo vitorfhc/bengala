@@ -27,8 +27,8 @@ class TestFormatFinalScoreboard:
         assert "abacaxi" in result
         assert "@alice" in result
         assert "42 pontos" in result
-        assert "silenciado" in result
-        assert "🔇" in result
+        assert "bengalado" in result
+        assert "🤡" in result
 
     def test_no_players(self) -> None:
         result = format_final_scoreboard("abacaxi", [])
@@ -51,9 +51,9 @@ class TestFormatPartialScoreboard:
         result = format_partial_scoreboard(scores)
         assert "@alice" in result
         assert "@bob" in result
-        # Should NOT reveal mute status
-        assert "silenciado" not in result
-        assert "🔇" not in result
+        # Should NOT reveal punishment status
+        assert "bengalado" not in result
+        assert "🤡" not in result
 
     def test_no_players(self) -> None:
         result = format_partial_scoreboard([])
@@ -68,11 +68,11 @@ class TestOtherMessages:
 
     def test_mute_notice(self) -> None:
         result = format_mute_notice()
-        assert "silenciado" in result
+        assert "bengalado" in result
 
     def test_already_muted(self) -> None:
         result = format_already_muted_notice()
-        assert "silenciado" in result
+        assert "bengalado" in result
 
     def test_secret_word(self) -> None:
         result = format_secret_word("abacaxi")

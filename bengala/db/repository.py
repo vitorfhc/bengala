@@ -84,7 +84,7 @@ class Repository:
     ) -> PlayerData:
         """Get an existing player or create a new one for this round."""
         async with self._conn.execute(
-            "SELECT id, round_id, user_id, username, muted_at "
+            "SELECT id, round_id, user_id, username, muted_at, original_nickname "
             "FROM players WHERE round_id = ? AND user_id = ?",
             (round_id, user_id),
         ) as cursor:
@@ -96,6 +96,7 @@ class Repository:
                     user_id=row[2],
                     username=row[3],
                     muted_at=_parse_dt(row[4]) if row[4] else None,
+                    original_nickname=row[5],
                 )
 
         cursor = await self._conn.execute(
@@ -112,13 +113,30 @@ class Repository:
             username=username,
         )
 
-    async def mute_player(self, player_id: int, muted_at: datetime) -> None:
-        """Record that a player was muted."""
+    async def mute_player(
+        self,
+        player_id: int,
+        muted_at: datetime,
+        original_nickname: str | None,
+    ) -> None:
+        """Record that a player was punished, storing their pre-punishment nick."""
         await self._conn.execute(
-            "UPDATE players SET muted_at = ? WHERE id = ?",
-            (_format_dt(muted_at), player_id),
+            "UPDATE players SET muted_at = ?, original_nickname = ? WHERE id = ?",
+            (_format_dt(muted_at), original_nickname, player_id),
         )
         await self._conn.commit()
+
+    async def get_punished_players(
+        self, round_id: int
+    ) -> list[tuple[int, str | None]]:
+        """Get (user_id, original_nickname) for all punished players in a round."""
+        async with self._conn.execute(
+            "SELECT user_id, original_nickname FROM players "
+            "WHERE round_id = ? AND muted_at IS NOT NULL",
+            (round_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [(row[0], row[1]) for row in rows]
 
     async def add_message(
         self,
@@ -147,7 +165,7 @@ class Repository:
     async def get_round_players(self, round_id: int) -> list[PlayerData]:
         """Get all players in a round."""
         async with self._conn.execute(
-            "SELECT id, round_id, user_id, username, muted_at "
+            "SELECT id, round_id, user_id, username, muted_at, original_nickname "
             "FROM players WHERE round_id = ?",
             (round_id,),
         ) as cursor:
@@ -159,6 +177,7 @@ class Repository:
                     user_id=row[2],
                     username=row[3],
                     muted_at=_parse_dt(row[4]) if row[4] else None,
+                    original_nickname=row[5],
                 )
                 for row in rows
             ]

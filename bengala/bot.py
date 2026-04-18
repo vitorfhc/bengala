@@ -10,8 +10,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from apscheduler.triggers.date import DateTrigger  # type: ignore[import-untyped]
-
 from bengala.config import Config
 from bengala.db.repository import Repository
 from bengala.messages import (
@@ -29,6 +27,17 @@ from bengala.scoring import build_scoreboard
 from bengala.word_pipeline import contains_forbidden_word, select_forbidden_word
 
 logger = logging.getLogger("bengala")
+
+DISCORD_NICK_MAX = 32
+BENGALADO_SUFFIX = " - bengalado"
+BENGALADO_PREFIX = "🤡 "
+BENGALADO_BASE_MAX = DISCORD_NICK_MAX - len(BENGALADO_PREFIX) - len(BENGALADO_SUFFIX)
+
+
+def _build_bengalado_nick(display_name: str) -> str:
+    """Build the clown-prefixed nickname, truncated to Discord's 32-char cap."""
+    base = display_name[:BENGALADO_BASE_MAX]
+    return f"{BENGALADO_PREFIX}{base}{BENGALADO_SUFFIX}"
 
 
 class BengalaBot(commands.Bot):
@@ -116,34 +125,32 @@ class BengalaBot(commands.Bot):
             if member is None:
                 return
 
-            mute_role = guild.get_role(self.config.mute_role_id)
-            if mute_role is None:
-                logger.error("Cargo de mute %d não encontrado!", self.config.mute_role_id)
-                return
-
-            if mute_role in member.roles:
-                # Already muted — send taunt
+            if player.muted_at is not None:
+                # Already punished — send taunt
                 try:
                     await message.author.send(format_already_muted_notice())
                 except discord.Forbidden:
                     logger.warning("Não foi possível enviar DM para %s", message.author)
             else:
-                # Mute the player
-                await member.add_roles(mute_role)
-                await self.repo.mute_player(player.id, now)
-                player.muted_at = now
-                # Schedule automatic unmute after 1 hour
-                self.scheduler.add_job(
-                    unmute_player,
-                    DateTrigger(run_date=now + timedelta(hours=1)),
-                    args=[self, guild.id, member.id, mute_role.id],
-                    id=f"unmute_{member.id}_{active_round.id}",
-                    replace_existing=True,
-                )
+                original_nickname = member.nick
+                new_nick = _build_bengalado_nick(member.display_name)
                 try:
-                    await message.author.send(format_mute_notice())
+                    await member.edit(nick=new_nick)
                 except discord.Forbidden:
-                    logger.warning("Não foi possível enviar DM para %s", message.author)
+                    logger.warning(
+                        "Sem permissão para renomear %s — punição não aplicada",
+                        member,
+                    )
+                else:
+                    await self.repo.mute_player(player.id, now, original_nickname)
+                    player.muted_at = now
+                    player.original_nickname = original_nickname
+                    try:
+                        await message.author.send(format_mute_notice())
+                    except discord.Forbidden:
+                        logger.warning(
+                            "Não foi possível enviar DM para %s", message.author
+                        )
 
         if "padi" in message.content.lower().split():
             try:
@@ -156,24 +163,21 @@ class BengalaBot(commands.Bot):
         await self.process_commands(message)
 
 
-async def unmute_player(
-    bot: BengalaBot, guild_id: int, member_id: int, mute_role_id: int
+async def _restore_punished_nicknames(
+    guild: discord.Guild,
+    punished: list[tuple[int, str | None]],
 ) -> None:
-    """Remove the mute role from a player after the mute duration expires."""
-    guild = bot.get_guild(guild_id)
-    if guild is None:
-        return
-    member = guild.get_member(member_id)
-    if member is None:
-        return
-    mute_role = guild.get_role(mute_role_id)
-    if mute_role is None or mute_role not in member.roles:
-        return
-    try:
-        await member.remove_roles(mute_role)
-        logger.info("Mute expirado para %s", member)
-    except discord.Forbidden:
-        logger.warning("Não foi possível remover mute de %s", member)
+    """Restore each punished member's nickname to its pre-punishment value."""
+    for user_id, original_nickname in punished:
+        member = guild.get_member(user_id)
+        if member is None:
+            continue
+        try:
+            await member.edit(nick=original_nickname)
+        except discord.Forbidden:
+            logger.warning(
+                "Não foi possível restaurar nickname de %s", member
+            )
 
 
 async def _compute_scoreboard(
@@ -187,7 +191,7 @@ async def _compute_scoreboard(
 
 
 async def run_daily_cycle(bot: BengalaBot) -> None:
-    """Execute the daily cycle: scoreboard, unmute, select word, new round."""
+    """Execute the daily cycle: scoreboard, restore nicknames, select word, new round."""
     now = datetime.now(timezone.utc)
     repo = bot.repo
     config = bot.config
@@ -197,7 +201,7 @@ async def run_daily_cycle(bot: BengalaBot) -> None:
         logger.error("Canal monitorado %d não encontrado!", config.watched_channel_id)
         return
 
-    # 1. Send final scoreboard if there's an active round
+    # 1. Send final scoreboard and restore nicknames if there's an active round
     active_round = await repo.get_active_round()
     if active_round is not None:
         players = await repo.get_round_players(active_round.id)
@@ -211,17 +215,10 @@ async def run_daily_cycle(bot: BengalaBot) -> None:
         await channel.send(scoreboard_msg)
         await repo.end_round(active_round.id, now)
 
-    # 2. Remove mute role from all members
-    guild = channel.guild
-    mute_role = guild.get_role(config.mute_role_id)
-    if mute_role is not None:
-        for member in mute_role.members:
-            try:
-                await member.remove_roles(mute_role)
-            except discord.Forbidden:
-                logger.warning("Não foi possível remover mute de %s", member)
+        punished = await repo.get_punished_players(active_round.id)
+        await _restore_punished_nicknames(channel.guild, punished)
 
-    # 3. Select new forbidden word
+    # 2. Select new forbidden word
     seven_days_ago = now - timedelta(days=7)
     raw_messages: list[str] = []
     try:
@@ -233,7 +230,7 @@ async def run_daily_cycle(bot: BengalaBot) -> None:
 
     forbidden_word = select_forbidden_word(raw_messages)
 
-    # 4. Start new round
+    # 3. Start new round
     await repo.create_round(forbidden_word, now)
     logger.info("Nova rodada iniciada. Palavra proibida: %s", forbidden_word)
 

@@ -1,6 +1,6 @@
 # Bengala — Bot Discord de Palavra Proibida
 
-Bengala é um jogo diário para Discord onde uma palavra proibida secreta é escolhida automaticamente. Jogadores conversam normalmente no canal — quem disser a palavra proibida é silenciado até a próxima rodada. Ao final do dia, o placar é revelado com a contagem de palavras únicas de cada jogador.
+Bengala é um jogo diário para Discord onde uma palavra proibida secreta é escolhida automaticamente. Jogadores conversam normalmente no canal — quem disser a palavra proibida tem o apelido do servidor trocado para `🤡 <nome> - bengalado` até a próxima rodada. Ao final do dia, o placar é revelado com a contagem de palavras únicas de cada jogador.
 
 ## Sumário
 
@@ -66,7 +66,7 @@ Ainda na página **"Bot"** do Developer Portal:
 1. Role até a seção **"Privileged Gateway Intents"**
 2. Ative os seguintes intents:
    - **MESSAGE CONTENT INTENT** — necessário para ler o conteúdo das mensagens e detectar a palavra proibida
-   - **SERVER MEMBERS INTENT** — necessário para gerenciar cargos dos membros (mute/unmute)
+   - **SERVER MEMBERS INTENT** — necessário para alterar o apelido dos membros (punição e restauração)
 3. Clique em **"Save Changes"**
 
 ### 2.2 Permissões Necessárias
@@ -77,7 +77,7 @@ O bot precisa das seguintes permissões no servidor:
 |---|---|
 | **Send Messages** | Enviar o placar e regras no canal |
 | **Read Message History** | Ler mensagens dos últimos 7 dias para selecionar a palavra |
-| **Manage Roles** | Adicionar/remover o cargo de silenciamento dos membros |
+| **Manage Nicknames** | Trocar o apelido de quem disser a palavra proibida e restaurar depois |
 | **Use Application Commands** | Registrar e responder aos slash commands |
 | **View Channels** | Ver o canal monitorado |
 
@@ -95,7 +95,7 @@ O bot precisa das seguintes permissões no servidor:
    - Em **"Bot Permissions"**, marque:
      - `Send Messages`
      - `Read Message History`
-     - `Manage Roles`
+     - `Manage Nicknames`
      - `Use Application Commands`
      - `View Channels`
 3. Copie a URL gerada na parte inferior da página
@@ -111,7 +111,7 @@ O bot precisa das seguintes permissões no servidor:
 
 ## 4. Configurar o Servidor Discord
 
-Antes de iniciar o bot, você precisa configurar três coisas no seu servidor Discord e anotar seus IDs.
+Antes de iniciar o bot, você precisa configurar duas coisas no seu servidor Discord e anotar seus IDs.
 
 ### 4.1 Ativar o Modo de Desenvolvedor (para copiar IDs)
 
@@ -127,43 +127,29 @@ Com o modo de desenvolvedor ativo, você pode clicar com o botão direito em can
 2. Clique com o botão direito no canal e selecione **"Copiar ID do Canal"**
 3. Este ID será usado na variável `WATCHED_CHANNEL_ID`
 
-### 4.3 Criar o Cargo de Silenciamento (Mute)
-
-1. Vá em **Configurações do Servidor > Cargos**
-2. Crie um novo cargo chamado **"Silenciado"** (ou "Muted")
-3. Nas permissões do cargo, **não conceda nenhuma permissão**
-4. Clique com o botão direito no cargo e selecione **"Copiar ID do Cargo"**
-5. Este ID será usado na variável `MUTE_ROLE_ID`
-
-Agora configure o canal para impedir mensagens de quem tem este cargo:
-
-1. Vá nas **configurações do canal do jogo** (clique na engrenagem ao lado do nome)
-2. Vá em **"Permissões"**
-3. Clique em **"Adicionar cargo"** e selecione o cargo **"Silenciado"**
-4. **Negue** (marque com X vermelho) a permissão **"Enviar Mensagens"**
-5. Salve as alterações
-
-### 4.4 Criar o Cargo de Admin do Bot
+### 4.3 Criar o Cargo de Admin do Bot
 
 1. Em **Configurações do Servidor > Cargos**, crie um novo cargo chamado **"Bengala Admin"**
 2. Atribua este cargo aos membros que devem ter acesso aos comandos `/secret` e `/restart`
 3. Clique com o botão direito no cargo e selecione **"Copiar ID do Cargo"**
 4. Este ID será usado na variável `ADMIN_ROLE_ID`
 
-### 4.5 Hierarquia de Cargos (Muito Importante)
+### 4.4 Hierarquia de Cargos (Muito Importante)
 
-O cargo do bot **deve estar acima** do cargo "Silenciado" na hierarquia de cargos do servidor. Caso contrário, o bot não conseguirá atribuir/remover o cargo de mute.
+O cargo do bot **deve estar acima** dos cargos dos jogadores na hierarquia do servidor. Caso contrário, o bot não conseguirá alterar o apelido deles. O Discord não permite que um bot altere o apelido de membros com cargos iguais ou superiores ao seu.
 
-1. Em **Configurações do Servidor > Cargos**, arraste o cargo do bot (geralmente com o mesmo nome da aplicação, ex: "Bengala") para **acima** do cargo "Silenciado"
+1. Em **Configurações do Servidor > Cargos**, arraste o cargo do bot (geralmente com o mesmo nome da aplicação, ex: "Bengala") para **acima** dos cargos dos jogadores que participam do jogo
 
 ```
 Hierarquia correta:
   ├── @Admin
-  ├── Bengala (cargo do bot)    ← acima do Silenciado
+  ├── Bengala (cargo do bot)    ← acima dos jogadores
   ├── Bengala Admin
-  ├── Silenciado                ← abaixo do cargo do bot
+  ├── @Jogadores
   └── @everyone
 ```
+
+> **Observação**: O bot nunca conseguirá alterar o apelido do **dono** do servidor (limitação do Discord). Se o dono for bengalado, a punição não será aplicada e um aviso será registrado nos logs.
 
 ---
 
@@ -182,7 +168,6 @@ Edite o `.env` com os valores reais:
 ```env
 DISCORD_TOKEN=MTIzNDU2Nzg5MDEy...seu_token_aqui
 WATCHED_CHANNEL_ID=1234567890123456789
-MUTE_ROLE_ID=1234567890123456789
 ADMIN_ROLE_ID=1234567890123456789
 ```
 
@@ -190,8 +175,7 @@ ADMIN_ROLE_ID=1234567890123456789
 |---|---|
 | `DISCORD_TOKEN` | Token copiado no [passo 1.4](#14-copiar-o-token-do-bot) |
 | `WATCHED_CHANNEL_ID` | ID do canal copiado no [passo 4.2](#42-escolher-o-canal-do-jogo) |
-| `MUTE_ROLE_ID` | ID do cargo de mute copiado no [passo 4.3](#43-criar-o-cargo-de-silenciamento-mute) |
-| `ADMIN_ROLE_ID` | ID do cargo admin copiado no [passo 4.4](#44-criar-o-cargo-de-admin-do-bot) |
+| `ADMIN_ROLE_ID` | ID do cargo admin copiado no [passo 4.3](#43-criar-o-cargo-de-admin-do-bot) |
 
 > **IMPORTANTE**: O arquivo `.env` contém o token do bot e **nunca deve ser commitado** no repositório. Ele já está incluído no `.gitignore`.
 
@@ -335,7 +319,7 @@ No canal do jogo, digite `/` e verifique se os comandos do Bengala aparecem:
 | Comando | Acesso | Visibilidade | Descrição |
 |---|---|---|---|
 | `/rules` | Todos | Pública | Exibe as regras do jogo |
-| `/placar` | Todos | Pública | Mostra o placar parcial da rodada atual (sem revelar quem foi silenciado) |
+| `/placar` | Todos | Pública | Mostra o placar parcial da rodada atual (sem revelar quem foi bengalado) |
 | `/secret` | Apenas `ADMIN_ROLE_ID` | Efêmera (só você vê) | Revela a palavra proibida do dia |
 | `/restart` | Apenas `ADMIN_ROLE_ID` | Efêmera (só você vê) | Força o encerramento da rodada atual e inicia uma nova |
 
@@ -348,7 +332,7 @@ No canal do jogo, digite `/` e verifique se os comandos do Bengala aparecem:
 Todos os dias às 06h00 UTC, automaticamente:
 
 1. O placar da rodada anterior é publicado no canal (revelando a palavra proibida)
-2. Todos os jogadores silenciados são desbloqueados
+2. Os apelidos dos jogadores bengalados são restaurados aos valores originais
 3. Uma nova palavra proibida é selecionada a partir das mensagens dos últimos 7 dias
 4. Uma nova rodada começa
 
@@ -364,13 +348,15 @@ A palavra proibida é escolhida automaticamente:
 ### Pontuação
 
 - Cada palavra **única** (4+ caracteres, excluindo stop words) que um jogador envia conta como **1 ponto**
-- Jogadores silenciados pontuam com base nas mensagens enviadas **antes** do silenciamento
-- O placar parcial (`/placar`) não revela quem foi silenciado
+- Jogadores bengalados pontuam com base nas mensagens enviadas **antes** de serem bengalados
+- O placar parcial (`/placar`) não revela quem foi bengalado
 
-### Silenciamento
+### Punição (Apelido do Palhaço)
 
-- Quando um jogador diz a palavra proibida, ele recebe o cargo de mute via **DM privada** (ninguém mais fica sabendo)
-- Jogadores silenciados não podem enviar mensagens no canal até a próxima rodada
+- Quando um jogador diz a palavra proibida, o bot troca o apelido do servidor dele para `🤡 <nome original> - bengalado`
+- O jogador recebe uma **DM privada** avisando (mas o apelido em si é visível para todos)
+- O apelido original é restaurado automaticamente quando uma nova rodada começa (no ciclo das 06h00 UTC ou via `/restart`)
+- O apelido fica limitado a 32 caracteres; nomes muito longos são truncados para caber
 
 ---
 
@@ -381,7 +367,7 @@ A palavra proibida é escolhida automaticamente:
 O bot usa SQLite para persistir o estado entre reinicializações. O banco de dados armazena:
 - A rodada ativa e sua palavra proibida
 - Todos os jogadores e suas mensagens
-- Timestamps de silenciamento
+- Timestamps de punição e apelidos originais (para restaurar no fim da rodada)
 
 No deploy Docker, os dados ficam no volume `bengala_data` em `/app/data/bengala.db`.
 
@@ -428,26 +414,23 @@ docker compose up -d --build
 - Verifique se o bot tem a permissão `Use Application Commands` no servidor
 - Verifique nos logs se aparece `"Slash commands synced."`
 
-### Bot não consegue silenciar membros
+### Bot não consegue alterar apelido dos membros
 
-- Verifique se o cargo do bot está **acima** do cargo "Silenciado" na hierarquia (veja [passo 4.5](#45-hierarquia-de-cargos-muito-importante))
-- Verifique se o bot tem a permissão **Manage Roles** no servidor
-- Verifique se o `MUTE_ROLE_ID` está correto no `.env`
-
-### Silenciado mas ainda consegue enviar mensagens
-
-- Verifique se o canal tem a permissão **"Enviar Mensagens"** negada para o cargo "Silenciado" (veja [passo 4.3](#43-criar-o-cargo-de-silenciamento-mute))
+- Verifique se o cargo do bot está **acima** dos cargos dos jogadores na hierarquia (veja [passo 4.4](#44-hierarquia-de-cargos-muito-importante))
+- Verifique se o bot tem a permissão **Manage Nicknames** no servidor
+- O dono do servidor não pode ter o apelido alterado por bots — é uma limitação do Discord
+- O log registrará: `"Sem permissão para renomear ... — punição não aplicada"`
 
 ### Erro "Variáveis de ambiente ausentes"
 
-- Certifique-se de que o `.env` existe e contém todas as 4 variáveis
+- Certifique-se de que o `.env` existe e contém todas as 3 variáveis
 - Verifique se não há espaços ao redor do `=` nos valores
 - IDs devem ser apenas números (sem aspas)
 
-### Bot não envia DM ao silenciar
+### Bot não envia DM ao bengalar
 
 - O jogador pode ter DMs desativadas para membros do servidor
-- Isso não impede o silenciamento — apenas a notificação privada não é enviada
+- Isso não impede a troca do apelido — apenas a notificação privada não é enviada
 - O log registrará um aviso: `"Não foi possível enviar DM para ..."`
 
 ### Banco de dados corrompido

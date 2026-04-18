@@ -38,8 +38,8 @@ def format_final_scoreboard(
         for i, score in enumerate(scores, 1):
             medal = _medal(i)
             prefix = f"{medal} " if medal else ""
-            muted_tag = " (silenciado)" if score.muted else ""
-            muted_icon = "🔇 " if score.muted else ""
+            muted_tag = " (bengalado)" if score.muted else ""
+            muted_icon = "🤡 " if score.muted else ""
             lines.append(
                 f"{muted_icon}{prefix}{i}º — @{score.username} — "
                 f"{score.score} {_points_label(score.score)}{muted_tag}"
@@ -78,28 +78,28 @@ def format_rules() -> str:
         "🎯 **O que é?**\n"
         "Bengala é um jogo diário onde uma palavra proibida secreta é "
         "escolhida a cada dia. Converse normalmente, mas cuidado — se "
-        "você disser a palavra proibida, será silenciado!\n"
+        "você disser a palavra proibida, será bengalado!\n"
         "\n"
         "🔤 **Como a palavra é escolhida?**\n"
         "A palavra proibida é selecionada automaticamente a partir das "
         "mensagens recentes do canal. Ninguém sabe qual é a palavra até "
         "o placar ser revelado no dia seguinte.\n"
         "\n"
-        "🔇 **O que acontece se eu disser a palavra proibida?**\n"
-        "Você será silenciado por 1 hora. A notificação é "
-        "privada — só você saberá o que aconteceu, os outros jogadores "
-        "não serão avisados.\n"
+        "🤡 **O que acontece se eu disser a palavra proibida?**\n"
+        "Seu apelido no servidor vira `🤡 <seu nome> - bengalado` até o "
+        "fim da rodada — todo mundo vai ver. O apelido original é "
+        "restaurado quando uma nova rodada começa.\n"
         "\n"
         "📊 **Como os pontos são calculados?**\n"
         "Cada palavra única (com 4+ caracteres, excluindo stop words) "
-        "que você enviar conta como 1 ponto. Jogadores silenciados "
-        "também pontuam, com base nas mensagens enviadas antes do "
-        "silenciamento.\n"
+        "que você enviar conta como 1 ponto. Jogadores bengalados "
+        "também pontuam, com base nas mensagens enviadas antes de "
+        "serem bengalados.\n"
         "\n"
         "⏰ **Quando o placar é revelado?**\n"
         "Todos os dias às 06h00 UTC, o placar da rodada anterior é "
-        "divulgado, a palavra proibida é revelada, e uma nova rodada "
-        "começa automaticamente.\n"
+        "divulgado, a palavra proibida é revelada, os apelidos são "
+        "restaurados, e uma nova rodada começa automaticamente.\n"
         "\n"
         "📋 **Comandos disponíveis:**\n"
         "• `/rules` — Exibe estas regras\n"
@@ -108,20 +108,20 @@ def format_rules() -> str:
 
 
 def format_mute_notice() -> str:
-    """Format the ephemeral mute notification."""
+    """Format the ephemeral punishment notification."""
     return (
-        "🔇 Você foi bengalado!!! Que delicia!!! "
-        "Você disse a palavra proibida e foi silenciado por 1 hora! "
-        "Só você está vendo esta mensagem — os outros jogadores "
-        "não sabem o que aconteceu."
+        "🤡 Você foi bengalado!!! Que delicia!!! "
+        "Seu apelido agora tem um palhaço grudado nele até o fim da "
+        "rodada — todo mundo vai ver. Só você está vendo esta "
+        "mensagem, mas o apelido... esse não tem como esconder."
     )
 
 
 def format_already_muted_notice() -> str:
-    """Format the ephemeral notice for already-muted players."""
+    """Format the ephemeral notice for already-punished players."""
     return (
         "😂 Você tentou dizer a palavra proibida de novo... "
-        "mas já está silenciado! Bengalado burro!"
+        "mas já está bengalado! Olha só o seu apelido, palhaço!"
     )
 
 
